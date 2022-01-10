@@ -2,6 +2,7 @@ from twilio.rest import Client
 from dotenv import load_dotenv
 import hashlib
 import sqlite3
+import os
 
 
 def connectToDB(db_path: str):
@@ -21,16 +22,16 @@ def closeDB(con):
 def register() -> str:
     username = ""
     while not username:
-        username = input("Enter a new username: ")
+        username = input("\nEnter a new username: ")
 
         con, cur = connectToDB('app.db')
         cur.execute("SELECT * FROM Users WHERE username=?", (username,))
         rows = cur.fetchall()
         if rows:
-            print("Username already exists. Please try another one.\n")
+            print("Username already exists. Please try another one.")
             username = ""
 
-    password = input("Enter a new password.")
+    password = input("Enter a new password: ")
     pass_hash = hashlib.sha256(password.encode()).hexdigest()
 
     cur.execute("INSERT INTO Users VALUES (?, ?)", (username, pass_hash,))
@@ -42,14 +43,25 @@ def register() -> str:
 
 def login() -> str:
     username = ""
-    username = input("What is your username? ")
+    username = input("Enter username: ")
 
     con, cur = connectToDB('app.db')
     cur.execute("SELECT * FROM Users WHERE username=?", (username,))
     rows = cur.fetchall()
     if not rows:
-        print("Username does not exist.\n")
+        print("Username does not exist.")
         return ""
+
+    password = input("Enter password: ")
+    password = hashlib.sha256(password.encode()).hexdigest()
+
+    if password != rows[0][1]:
+        print("Incorrect password.")
+        return ""
+
+    print("Login succesful.")
+
+    return username
 
 
 def main():
@@ -62,14 +74,27 @@ def main():
         if user_status != '1' and user_status != '2' and user_status != 'done':
             print("Error! Invalid input. Please try again or type 'done' to quit.")
 
-    if user_status == 1:
+    if user_status == '1':
         username = register()
-    elif user_status == 2:
+    elif user_status == '2':
         username = login()
-        if not username:
-            return
-    else:
 
+    if user_status == 'done' or not username:
+        return
+
+    twilio_account_sid = os.environ['TWILIO_ACCOUNT_SID']
+    twilio_auth_token = os.environ['TWILIO_AUTH_TOKEN']
+    twilio_phone_num = os.environ['TWILIO_PHONE_NUM']
+    user_phone_num = os.environ['USER_PHONE_NUM']
+    twilio_client = Client(twilio_account_sid, twilio_auth_token)
+    message = twilio_client.messages \
+                    .create(
+                        body="twilio works!",
+                        from_=twilio_phone_num,
+                        to=user_phone_num
+                    )
+
+    print(message.sid)
 
 if __name__ == "__main__":
     load_dotenv()
