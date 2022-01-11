@@ -2,6 +2,7 @@ from twilio.rest import Client
 from dotenv import load_dotenv
 import hashlib
 import sqlite3
+import urllib3
 import requests
 import os
 
@@ -176,15 +177,45 @@ def main():
                 purdue_api_url + purdue_course_query, verify=False
             ).json()
             sem_map = {'10': 'Fall', '20': 'Spring', '30': 'Summer'}
-            print(f"\nCourses in {sem_map[course_term[4:]]} {course_term[0:4]}")
+            print(f"\nCourses in {sem_map[course_term[4:]]} {course_term[0:4]}:")
             for course in courses_response['value']:
                 if course['Classes']:
                     print(f"{course_subject} {course['Number']}: {course['Title']}")
-            
-            course_num = input()
+
+            course_num_list = [course['Number'] for course in courses_response['value']]
+            course_num = -1
+            while course_num not in course_num_list:
+                course_num = input("Enter course number here: ").lower()
+                if course_num == 'quit':
+                    return
+                if course_num not in course_num_list:
+                    print("Error! Course number is not in the given list. Please try again or type 'quit' to quit. Make sure you type number exactly as it appears.")
+                    continue
+
+        chosen_section = -1
+        while chosen_section == -1:
+            print("Please choose a section from the following.")
+            purdue_course_query = f"Courses?$expand=Classes($filter=Term/Code eq '{course_term}'; \
+                                $expand=Sections($expand=Meetings)) \
+                                &$filter=Subject/Abbreviation eq '{course_subject}' \
+                                and Number eq '{course_num}'"
+            courses_response = requests.get(
+                purdue_api_url + purdue_course_query, verify=False
+            ).json()
+            for i, section in enumerate(courses_response['value'][0]['Classes']):
+                section = section['Sections'][0]
+                print(f"Section {i+1}")
+                print(f"Type: {section['Meetings'][0]['Type']}")
+                print(f"Meeting Days: {section['Meetings'][0]['DaysOfWeek']}")
+                print(f"Remaining spots: {section['RemainingSpace']}")
+
+            chosen_section = input("Enter section number here: ")
+
+
 
 
 
 if __name__ == "__main__":
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     load_dotenv()
     main()
