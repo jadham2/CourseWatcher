@@ -1,10 +1,12 @@
 from twilio.rest import Client
 from dotenv import load_dotenv
+import datetime
 import hashlib
 import sqlite3
 import urllib3
 import requests
 import os
+import re
 
 
 def connectToDB(db_path: str):
@@ -66,6 +68,7 @@ def login() -> str:
     print("Login succesful.")
 
     return username
+
 
 def handle_user() -> str:
     print("Are you a new user or an existing user?")
@@ -204,14 +207,34 @@ def main():
             ).json()
             for i, section in enumerate(courses_response['value'][0]['Classes']):
                 section = section['Sections'][0]
+                meeting = section['Meetings'][0]
+
+                start_time = meeting['StartTime']
+                duration = meeting['Duration']
+
+                start_time = datetime.datetime.strptime(start_time, "%Y-%m-%dT%H:%M:%Sz")
+                duration = re.match(r'^PT(?:(?P<hour>\d+)H)?(?:(?P<minute>\d+)M)?(?:(?P<second>\d+)S)?$', duration)
+                duration = duration.groupdict(default=0)
+                duration = datetime.timedelta(hours=int(duration['hour']), minutes=int(duration['minute']), seconds=int(duration['second']))
+
+                end_time = start_time + duration
+                time_fstring = "%I:%M %p"
+                start_time = start_time.strftime(time_fstring)
+                end_time = end_time.strftime(time_fstring)
+
                 print(f"Section {i+1}")
+                print(f"CRN: {section['Crn']}")
                 print(f"Type: {section['Meetings'][0]['Type']}")
                 print(f"Meeting Days: {section['Meetings'][0]['DaysOfWeek']}")
+                print(f"Timeslot: {start_time} - {end_time}")
                 print(f"Remaining spots: {section['RemainingSpace']}")
 
             chosen_section = input("Enter section number here: ")
-
-
+            if chosen_section == 'quit':
+                return
+            if not chosen_section.isdigit() or int(chosen_section) < 1 or int(chosen_section) > len(courses_response['value'][0]['Classes']):
+                print("\nError! Invalid section. Please try again or type 'quit' to quit.")
+                chosen_section = -1
 
 
 
